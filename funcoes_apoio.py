@@ -1,23 +1,36 @@
 import numpy as np
 
-seed = 42
-np.random.seed(seed)
+#seed = 42
+#np.random.seed(seed)
 
 import pandas as pd
 from pandas import read_csv
 import matplotlib.pyplot as plt
-from pandas import DataFrame, concat
-from sklearn.preprocessing import MinMaxScaler
+import seaborn as sns
+from pandas import DataFrame
 from keras import backend as K
+from keras import optimizers
 from keras.models import Sequential
 from keras.layers import Dense, Activation, LSTM
+from keras.callbacks import ModelCheckpoint
 from sklearn.metrics import precision_recall_curve
-from keras import regularizers
 import heapq as hq
 import warnings
+import time
 warnings.filterwarnings("ignore")
 
+from prep_model_data_for_batches import dataprep_for_batches
 
+
+
+
+
+
+def timer(start,end):
+    hours, rem = divmod(end-start, 3600)
+    minutes, seconds = divmod(rem, 60)
+    tempo = '{:0>2}:{:0>2}:{:05.2f}'.format(int(hours),int(minutes),seconds)
+    return tempo
 
 
 
@@ -26,7 +39,7 @@ def lista_datas(base_total):
     datas = datas.set_index(['data'])
     datas = datas.sort_index(axis=0)
     limit_inf = '19990202 18:00:000'
-    limit_sup = '20171230 18:00:000'
+    limit_sup = '20190218 18:00:000'
     datas = datas.loc[limit_inf:limit_sup]
     datas = datas.sort_index(axis=0)
     datas = datas.reset_index(['data'])
@@ -35,15 +48,13 @@ def lista_datas(base_total):
 
 
 
-def gera_graficos_e_sumario(ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port_long_sim,ret_medio_port_short_sim,corr_prob_ret_sim,datas_teste_sim,k):
+def save_graphics(ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port_long_sim,ret_medio_port_short_sim,corr_prob_ret_sim,datas_teste_sim,k,version):
 
-    ini = 0
-    fim = -1
-    k_port = 0
-
+    k_port = 4   
+    local = "imagens/"
     
+    fig_file_name = local + "lstm_long_short_" + version + ".svg"    
     N = datas_teste_sim
-#    N = np.arange(0, len(ret_medio_ibov_sim))
     MEDIUM_SIZE = 16
     BIGGER_SIZE = 22
     plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
@@ -53,22 +64,23 @@ def gera_graficos_e_sumario(ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port
     plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
-    plt.figure()
     plt.rcParams['figure.figsize'] = (12, 8)
+    plt.figure()
     for j in range(k_port,len(k)):
         label_ = "portfolio k = " + str(k[j])
         plt.plot(N, ret_acum(ret_medio_port_sim.iloc[:,j].values), label=label_)
     plt.plot(N, ret_acum(ret_medio_ibov_sim.values), label="ibovespa")
-    plt.title("LSTM Deep Learning: Portfolio Long-Short Ibovespa")
+    plt.title("LSTM Deep Learning: Long-Short Strategy")
     plt.xlabel("Data")
     plt.ylabel("Retorno Acumulado")
     plt.legend(frameon=False)
+    plt.savefig(fig_file_name, dpi=600)
     plt.show()
     
     
     
+    fig_file_name = local + "lstm_long_" + version + ".svg"  
     N = datas_teste_sim
-#    N = np.arange(0, len(ret_medio_ibov_sim))
     MEDIUM_SIZE = 16
     BIGGER_SIZE = 22
     plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
@@ -78,20 +90,23 @@ def gera_graficos_e_sumario(ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port
     plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
-    plt.figure()
     plt.rcParams['figure.figsize'] = (12, 8)
+    plt.figure()
     for j in range(k_port,len(k)):
         label_ = "portfolio k = " + str(k[j])
         plt.plot(N, ret_acum(ret_medio_port_long_sim.iloc[:,j].values), label=label_)
     plt.plot(N, ret_acum(ret_medio_ibov_sim.values), label="ibovespa")
-    plt.title("LSTM Deep Learning: Portfolio Long Ibovespa")
+    plt.title("LSTM Deep Learning: Long Strategy")
     plt.xlabel("Data")
     plt.ylabel("Retorno Acumulado")
     plt.legend(frameon=False)
+    plt.savefig(fig_file_name, dpi=600)
     plt.show()
     
+    
+    
+    fig_file_name = local + "lstm_short_" + version + ".svg"  
     N = datas_teste_sim
-#    N = np.arange(0, len(ret_medio_ibov_sim))
     MEDIUM_SIZE = 16
     BIGGER_SIZE = 22
     plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
@@ -101,29 +116,31 @@ def gera_graficos_e_sumario(ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port
     plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
-    plt.figure()
     plt.rcParams['figure.figsize'] = (12, 8)
+    plt.figure()
     for j in range(k_port,len(k)):
         label_ = "portfolio k = " + str(k[j])
         plt.plot(N, ret_acum(ret_medio_port_short_sim.iloc[:,j].values), label=label_)
     plt.plot(N, ret_acum(ret_medio_ibov_sim.values), label="ibovespa")
-    plt.title("LSTM Deep Learning: Portfolio Short Ibovespa")
+    plt.title("LSTM Deep Learning: Short Strategy")
     plt.xlabel("Data")
     plt.ylabel("Retorno Acumulado")
     plt.legend(frameon=False)
+    plt.savefig(fig_file_name, dpi=600)
     plt.show()
+
     
     
     # scatter plot prob vs. return
-    x = corr_prob_ret_sim.iloc[:,0].values
-    y = corr_prob_ret_sim.iloc[:,1].values
-    plt.plot(x, y, "o")
-    plt.xlabel("Retorno")
-    plt.ylabel("Probabilidade")
-    plt.show()
-    
-    # distribuição retornos e probabilidades
-#    corr_prob_ret_sim.hist(bins = 100, grid=False, sharey = True)
+    fig_file_name = local + "lstm_correl_" + version + ".png"  
+    corr_prob_ret_sim.columns = ['return','probability']
+    corr_prob_ret_sim = corr_prob_ret_sim.apply(pd.to_numeric, errors='coerce').fillna(0)
+    plt.rc('font', size=18)
+    p = sns.jointplot(x = 'return', y = 'probability', data = corr_prob_ret_sim, kind="reg")
+    p.fig.set_size_inches(12,8)
+    p.savefig(fig_file_name)
+
+
     
 
 
@@ -140,8 +157,9 @@ def ret_acum(r):
 
 
 def ler_base_componetes():
-    nome = '00_componentes'
+    nome = '00_componentes_v2'
     path = 'D:/Users/felip/Documents/07. FEA/Dissertacao/dados/BOVESPA/dataprep/'
+#    path = '/content/drive/My Drive/codigos/dados/'
     tipo = '.csv'
     file = path + nome + tipo
     compomentes = read_csv(file)
@@ -152,24 +170,24 @@ def ler_base_componetes():
 
 
 
-def periodos_treino_teste(datas,inicio_treino,dias_treino,time_steps,dias_teste):
-    dia_inicio_treino = pd.to_datetime(datas.iloc[inicio_treino].values)[0]
-    dia_fim_treino = pd.to_datetime(datas.iloc[inicio_treino+dias_treino].values)[0]
-    dia_inicio_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+1].values)[0]
-    dia_inicio_teste_aux = pd.to_datetime(datas.iloc[inicio_treino+dias_treino-time_steps+1].values)[0]
-    dia_fim_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+dias_teste].values)[0]
-    
-    print('Data início treino....: ',dia_inicio_treino)
-    print('Data fim treino.......: ',dia_fim_treino)
-    print('Data início teste aux.: ',dia_inicio_teste_aux)
-    print('Data início teste.....: ',dia_inicio_teste)
-    print('Data fim teste........: ',dia_fim_teste)
-    
-    month = "{0:02d}".format(dia_fim_treino.month)
-    year =  "{0:04d}".format(dia_fim_treino.year)[2:]
-    anomes = month + '/' + year
-    papeis = compomentes.loc[:,anomes][compomentes.loc[:,anomes] > 0].index.values.tolist()
-    return papeis,dia_inicio_treino,dia_fim_treino,dia_inicio_teste,dia_fim_teste,dia_inicio_teste_aux
+#def periodos_treino_teste(datas,inicio_treino,dias_treino,time_steps,dias_teste):
+#    dia_inicio_treino = pd.to_datetime(datas.iloc[inicio_treino].values)[0]
+#    dia_fim_treino = pd.to_datetime(datas.iloc[inicio_treino+dias_treino].values)[0]
+#    dia_inicio_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+1].values)[0]
+#    dia_inicio_teste_aux = pd.to_datetime(datas.iloc[inicio_treino+dias_treino-time_steps+1].values)[0]
+#    dia_fim_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+dias_teste].values)[0]
+#    
+#    print('Data início treino....: ',dia_inicio_treino)
+#    print('Data fim treino.......: ',dia_fim_treino)
+#    print('Data início teste aux.: ',dia_inicio_teste_aux)
+#    print('Data início teste.....: ',dia_inicio_teste)
+#    print('Data fim teste........: ',dia_fim_teste)
+#    
+#    month = "{0:02d}".format(dia_fim_treino.month)
+#    year =  "{0:04d}".format(dia_fim_treino.year)[2:]
+#    anomes = month + '/' + year
+#    papeis = compomentes.loc[:,anomes][compomentes.loc[:,anomes] > 0].index.values.tolist()
+#    return papeis,dia_inicio_treino,dia_fim_treino,dia_inicio_teste,dia_fim_teste,dia_inicio_teste_aux
 
 
 
@@ -294,7 +312,7 @@ def histbonsmaus(treino_y_pred,treino_y,teste_y_pred,teste_y):
 
 
 def loss_acc(H):
-    N = np.arange(0, len(H["loss"]))
+#    N = np.arange(0, len(H["loss"]))
     MEDIUM_SIZE = 14
     BIGGER_SIZE = 18
     plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
@@ -304,12 +322,13 @@ def loss_acc(H):
     plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
-    plt.figure()
     plt.rcParams['figure.figsize'] = (12, 8)
-    plt.plot(N, H["loss"], label="train_loss")
-    plt.plot(N, H["val_loss"], label="valid_loss")
-    plt.plot(N, H["acc"], label="train_acc")
-    plt.plot(N, H["val_acc"], label="valid_acc")
+    plt.figure()
+    plt.plot(H)
+    plt.plot(H["loss"], label="train_loss")
+#    plt.plot(N, H["val_loss"], label="valid_loss")
+    plt.plot(H["acc"], label="train_acc")
+#    plt.plot(N, H["val_acc"], label="valid_acc")
     plt.title("LSTM Model Performance")
     plt.xlabel("Epoch #")
     plt.ylabel("Loss / Accuracy")
@@ -321,7 +340,10 @@ def loss_acc(H):
 
 
 
-def show_performance_modelo(score_treino,score_teste,treino_y,teste_y):
+def show_performance_modelo(score_treino,score_teste,treino_y,teste_y,modPars):
+    print('Qtde exemplos de treino.....:{: 2.0f}'.format(treino_y.shape[0]))
+    print('Qtde parametros de treino...:{: 2.0f}'.format(modPars))
+    print('Razão exemplos / parametros.:{: 2.6f}'.format(treino_y.shape[0]/modPars))
     print('Loss Treino.................:{: 2.6f}'.format(score_treino[0]))
     print('Loss Teste..................:{: 2.6f}'.format(score_teste[0]))
     print('Gap de Generalização........:{: 2.6f}'.format(score_teste[0]-score_treino[0]))
@@ -375,8 +397,8 @@ def show_ret(ret_medio_port,ret_medio_ibov,k):
     plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
-    plt.figure()
     plt.rcParams['figure.figsize'] = (12, 8)
+    plt.figure()
     for j in range(len(k)):
         label_ = "portfolio k =" + str(k[j])
         plt.plot(N, ret_medio_port[:,j], label=label_)
@@ -408,8 +430,8 @@ def show_ret_acum(ret_medio_port_acum,ret_medio_ibov_acum,k,datas_teste):
     plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
-    plt.figure()
     plt.rcParams['figure.figsize'] = (12, 8)
+    plt.figure()
     for j in range(len(k)):
         label_ = "portfolio k =" + str(k[j])
         plt.plot(N, ret_medio_port_acum[1:,j], label = label_)
@@ -526,5 +548,680 @@ def fbeta_score(y_true, y_pred, beta=1):
 def fmeasure(y_true, y_pred):
     # Calculates the f-measure, the harmonic mean of precision and recall.
     return fbeta_score(y_true, y_pred, beta=1)
+
+
+
+
+def save_stats(version,performance_modelo,ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port_long_sim,ret_medio_port_short_sim):
+    performance_modelo.describe().to_csv('stats/describe_' + version + '.csv', mode='w', header=True)
+    ret_medio_ibov_sim.describe().to_csv('stats/describe_' + version + '.csv', mode='a', header=True)
+    ret_medio_port_sim.describe().to_csv('stats/describe_' + version + '.csv', mode='a', header=True)
+    ret_medio_port_long_sim.describe().to_csv('stats/describe_' + version + '.csv', mode='a', header=True)
+    ret_medio_port_short_sim.describe().to_csv('stats/describe_' + version + '.csv', mode='a', header=True)
+
+
+
+
+def save_results(version,performance_modelo,ret_medio_ibov_sim,ret_medio_port_sim,ret_medio_port_long_sim,ret_medio_port_short_sim,datas_teste_sim,corr_prob_ret_sim):
+    local = 'modelos/'
+    performance_modelo.to_csv(local + 'performance_' + version + '.csv', sep='\t')
+    ret_medio_ibov_sim.to_csv(local + 'ret_medio_ibov_' + version + '.csv', sep='\t')
+    ret_medio_port_sim.to_csv(local + 'ret_medio_port_' + version + '.csv', sep='\t')
+    ret_medio_port_long_sim.to_csv(local + 'ret_medio_port_long_' + version + '.csv', sep='\t')
+    ret_medio_port_short_sim.to_csv(local + 'ret_medio_port_short_' + version + '.csv', sep='\t')
+    datas_teste_sim.to_csv(local + 'datas_teste_' + version + '.csv', sep='\t')
+    corr_prob_ret_sim.to_csv(local + 'corr_prob_ret_' + version + '.csv', sep='\t')
+
+
+
+
+
+def simulacao(monitCen, n_epoch, n_neurons, hidden, lr_value, decay_value, sim, ret_ibov, ret_target, dias_treino, dias_teste, time_steps, D, k, datas, base_total, features, cols, modelfilepath, compomentes, p, comm, stocks, n_batch_val, ver, act_func, metr_func):
+
+    # medidas de performance modelo
+    performance_modelo = np.zeros(shape=(len(D),8))
+    
+    sim_ok = 0
+
+    for d in D:
+        
+        start_time = time.time()
+        
+        df_hist = pd.DataFrame(np.zeros((n_epoch, 2)),columns=['acc', 'loss'])
+        
+#        seed = 42
+#        np.random.seed(seed)
+
+#        d = 2962
+#        sim = 27
+        print("\n\n*************************************")
+        print("Simulação", sim+1, "/", len(D))
+        print("*************************************")
+
+
+        # define dataset
+        inicio_treino = d
+#        papeis,dia_inicio_treino,dia_fim_treino,dia_inicio_teste,dia_fim_teste,dia_inicio_teste_aux = periodos_treino_teste(datas,inicio_treino,dias_treino,time_steps,dias_teste)
+#        base_in = base_total.loc[base_total['codigo'].isin(papeis)]
+
+        
+        # DataPrep da base para modelagem
+        dataprepreturn, treino_x, treino_y, teste_x, teste_y, qtde_treino, treino_retornos_total, teste_retornos_total, treino_datas_total, teste_datas_total, qtde_acoes, papeis = dataprep_for_batches(datas, inicio_treino, dias_treino, time_steps, dias_teste, features, cols, ret_ibov, ret_target, compomentes, base_total, comm, stocks)
+        
+        
+        
+        if dataprepreturn == False:
+            sim += 1
+            continue
+        sim_ok += 1
+
+
+        # design da rede LSTM # 000
+#        n_batch = 128
+#        model = Sequential()
+#        model.reset_states()
+#        model.add(LSTM(n_neurons, stateful = False, return_sequences = False, input_shape = (treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#        model.add(Dense(1))
+#        model.add(Activation('sigmoid'))
+#        model.compile(loss='binary_crossentropy', optimizer='RMSprop', metrics = ['accuracy'])
+#        checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'max')
+#        callbacks_list = [checkpoint]
+#        print(model.summary())
+#        print('\nFitting model...')
+#        history = model.fit(treino_x, treino_y, validation_split = 0.2, epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = 0, shuffle = False)
+      
+        
+        # design da rede LSTM # 001       
+#        fracao_treino = int(np.floor(p * (treino_x.shape[0] / qtde_acoes)) * qtde_acoes)        
+#        treino_x_tre = treino_x[:fracao_treino,:,:]
+#        treino_y_tre = treino_y[:fracao_treino,:]
+#        treino_x_val = treino_x[fracao_treino:,:,:] 
+#        treino_y_val = treino_y[fracao_treino:,:] 
+##        
+#        n_batch = qtde_acoes
+#        model = Sequential()
+#        model.add(LSTM(n_neurons, stateful = True, return_sequences = False, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#        model.add(Dense(1))
+#        model.add(Activation('sigmoid'))
+#        model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#        checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'max')
+#        callbacks_list = [checkpoint]
+#        print(model.summary())
+#        print('\nTreinando o modelo com', n_epoch, 'epochs...')
+#        history = model.fit(treino_x_tre, treino_y_tre, validation_data = (treino_x_val, treino_y_val), epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = 0, shuffle = False)
+
+
+        if hidden == 1:
+            
+#            fracao_treino = int(np.floor(p * (treino_x.shape[0] / qtde_acoes)) * qtde_acoes)        
+#            treino_x_tre = treino_x[:fracao_treino,:,:]
+#            treino_y_tre = treino_y[:fracao_treino,:]
+#            treino_x_val = treino_x[fracao_treino:,:,:] 
+#            treino_y_val = treino_y[fracao_treino:,:]
+#            if n_batch_val == 0:
+#                n_batch = qtde_acoes
+#            else:
+#                n_batch = n_batch_val
+#            model = Sequential()
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = False, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(Dense(1))
+#            model.add(Activation('sigmoid'))
+#            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#            if monitCen == 0:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_loss', verbose = 0, save_best_only = True, mode = 'auto')
+#            else:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'auto')
+#            callbacks_list = [checkpoint]
+#            print(model.summary())
+#            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+#            history = model.fit(treino_x_tre, treino_y_tre, validation_data = (treino_x_val, treino_y_val), epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+#            print('\nTreinou o modelo com', n_epoch, 'epochs...')
+            
+            
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            model = Sequential()
+            model.add(LSTM(n_neurons, stateful = False, return_sequences = False, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(Dense(1))
+            model.add(Activation('sigmoid'))
+            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            checkpoint = ModelCheckpoint(modelfilepath, monitor = 'loss', verbose = 0, save_best_only = False, mode = 'auto')
+            callbacks_list = [checkpoint]
+            modPars = model.count_params()
+            print(model.summary())
+            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+            for i in range(n_epoch):
+                history = model.fit(treino_x, treino_y, epochs = 1, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+                df_hist.iloc[i,0] = history.history['acc'][0]
+                df_hist.iloc[i,1] = history.history['loss'][0]
+                model.reset_states()
+
+
+            model.load_weights(modelfilepath)
+            # re-define the batch size
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_treino  = model_new.evaluate(treino_x, treino_y, batch_size = n_batch, verbose = ver)
+            treino_y_pred = np.array(model_new.predict(treino_x, batch_size = n_batch, verbose = ver))
+            
+            
+            
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = teste_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+#            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_teste   = model_new.evaluate(teste_x, teste_y, batch_size = n_batch, verbose = ver)
+            teste_y_pred  = np.array(model_new.predict(teste_x, batch_size = n_batch, verbose = ver))           
+            
+            
+
+            
+        
+        elif hidden == 2:
+        
+#            fracao_treino = int(np.floor(p * (treino_x.shape[0] / qtde_acoes)) * qtde_acoes)        
+#            treino_x_tre = treino_x[:fracao_treino,:,:]
+#            treino_y_tre = treino_y[:fracao_treino,:]
+#            treino_x_val = treino_x[fracao_treino:,:,:] 
+#            treino_y_val = treino_y[fracao_treino:,:] 
+#            n_batch = qtde_acoes
+#            model = Sequential()
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(Dense(1))
+#            model.add(Activation('sigmoid'))
+#            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#            if monitCen == 0:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_loss', verbose = 0, save_best_only = True, mode = 'auto')
+#            else:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'auto')
+#            callbacks_list = [checkpoint]
+#            print(model.summary())
+#            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+#            history = model.fit(treino_x_tre, treino_y_tre, validation_data = (treino_x_val, treino_y_val), epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+#            print('\nTreinou o modelo com', n_epoch, 'epochs...')
+            
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+                
+            model = Sequential()
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(Dense(n_neurons, activation=act_func))
+#            model.add(Dense(1,activation=act_func))
+            model.add(Dense(1))
+            model.add(Activation(act_func))
+            
+            sgd = optimizers.SGD(lr=lr_value, decay=decay_value, momentum=0.9, nesterov=True)
+            model.compile(loss='binary_crossentropy', optimizer = sgd, metrics = [metr_func])
+            checkpoint = ModelCheckpoint(modelfilepath, monitor = 'loss', verbose = 0, save_best_only = True, mode = 'auto')
+            callbacks_list = [checkpoint]
+            modPars = model.count_params()
+            print(model.summary())
+            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+            for i in range(n_epoch):
+                history = model.fit(treino_x, treino_y, epochs = 1, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+                df_hist.iloc[i,0] = history.history['acc'][0]
+                df_hist.iloc[i,1] = history.history['loss'][0]
+                model.reset_states()
+            print('\nTreinou o modelo!\n')
+
+
+            model.load_weights(modelfilepath)
+            # re-define the batch size
+#            if n_batch_val == 0:
+#                n_batch = qtde_acoes
+#            else:
+            n_batch = treino_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model_new.add(Dense(n_neurons, activation=act_func))
+#            model_new.add(Dense(1, activation=act_func))
+            model_new.add(Dense(1))
+            model_new.add(Activation(act_func))
+            # copy weights
+            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer = sgd, metrics = [metr_func])
+            # batch forecast
+            score_treino  = model_new.evaluate(treino_x, treino_y, batch_size = n_batch, verbose = ver)
+            treino_y_pred = np.array(model_new.predict(treino_x, batch_size = n_batch, verbose = ver))
+            
+            
+            
+#            if n_batch_val == 0:
+#                n_batch = qtde_acoes
+#            else:
+            n_batch = teste_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model_new.add(Dense(n_neurons, activation=act_func))
+#            model_new.add(Dense(1, activation=act_func))
+            model_new.add(Dense(1))
+            model_new.add(Activation(act_func))
+            # copy weights
+#            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer = sgd, metrics = [metr_func])
+            # batch forecast
+            score_teste   = model_new.evaluate(teste_x, teste_y, batch_size = n_batch, verbose = ver)
+            teste_y_pred  = np.array(model_new.predict(teste_x, batch_size = n_batch, verbose = ver))           
+            
+    
+        
+        elif hidden == 3:
+            
+#            fracao_treino = int(np.floor(p * (treino_x.shape[0] / qtde_acoes)) * qtde_acoes)        
+#            treino_x_tre = treino_x[:fracao_treino,:,:]
+#            treino_y_tre = treino_y[:fracao_treino,:]
+#            treino_x_val = treino_x[fracao_treino:,:,:] 
+#            treino_y_val = treino_y[fracao_treino:,:] 
+#            n_batch = qtde_acoes
+#            model = Sequential()
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(Dense(1))
+#            model.add(Activation('sigmoid'))
+#            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#            if monitCen == 0:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_loss', verbose = 0, save_best_only = True, mode = 'auto')
+#            else:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'auto')
+#            callbacks_list = [checkpoint]
+#            print(model.summary())
+#            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+#            history = model.fit(treino_x_tre, treino_y_tre, validation_data = (treino_x_val, treino_y_val), epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            model = Sequential()
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(Dense(1))
+            model.add(Activation('sigmoid'))
+            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            checkpoint = ModelCheckpoint(modelfilepath, monitor = 'loss', verbose = 0, save_best_only = False, mode = 'auto')
+            callbacks_list = [checkpoint]
+            modPars = model.count_params()
+            print(model.summary())
+            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+            for i in range(n_epoch):
+                history = model.fit(treino_x, treino_y, epochs = 1, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+                df_hist.iloc[i,0] = history.history['acc'][0]
+                df_hist.iloc[i,1] = history.history['loss'][0]
+                model.reset_states()
+
+
+            model.load_weights(modelfilepath)
+            # re-define the batch size
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_treino  = model_new.evaluate(treino_x, treino_y, batch_size = n_batch, verbose = ver)
+            treino_y_pred = np.array(model_new.predict(treino_x, batch_size = n_batch, verbose = ver))
+            
+            
+            
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = teste_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+#            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_teste   = model_new.evaluate(teste_x, teste_y, batch_size = n_batch, verbose = ver)
+            teste_y_pred  = np.array(model_new.predict(teste_x, batch_size = n_batch, verbose = ver))  
+ 
+        elif hidden == 4:
+            
+#            fracao_treino = int(np.floor(p * (treino_x.shape[0] / qtde_acoes)) * qtde_acoes)        
+#            treino_x_tre = treino_x[:fracao_treino,:,:]
+#            treino_y_tre = treino_y[:fracao_treino,:]
+#            treino_x_val = treino_x[fracao_treino:,:,:] 
+#            treino_y_val = treino_y[fracao_treino:,:] 
+#            n_batch = qtde_acoes
+#            model = Sequential()
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(Dense(1))
+#            model.add(Activation('sigmoid'))
+#            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#            if monitCen == 0:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_loss', verbose = 0, save_best_only = True, mode = 'auto')
+#            else:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'auto')
+#            callbacks_list = [checkpoint]
+#            print(model.summary())
+#            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+#            history = model.fit(treino_x_tre, treino_y_tre, validation_data = (treino_x_val, treino_y_val), epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)      
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            model = Sequential()
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(Dense(1))
+            model.add(Activation('sigmoid'))
+            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            checkpoint = ModelCheckpoint(modelfilepath, monitor = 'loss', verbose = 0, save_best_only = False, mode = 'auto')
+            callbacks_list = [checkpoint]
+            modPars = model.count_params()
+            print(model.summary())
+            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+            for i in range(n_epoch):
+                history = model.fit(treino_x, treino_y, epochs = 1, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+                df_hist.iloc[i,0] = history.history['acc'][0]
+                df_hist.iloc[i,1] = history.history['loss'][0]
+                model.reset_states()
+
+
+            model.load_weights(modelfilepath)
+            # re-define the batch size
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_treino  = model_new.evaluate(treino_x, treino_y, batch_size = n_batch, verbose = ver)
+            treino_y_pred = np.array(model_new.predict(treino_x, batch_size = n_batch, verbose = ver))
+            
+            
+            
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = teste_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+#            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_teste   = model_new.evaluate(teste_x, teste_y, batch_size = n_batch, verbose = ver)
+            teste_y_pred  = np.array(model_new.predict(teste_x, batch_size = n_batch, verbose = ver))  
+            
+        elif hidden == 5:
+            
+#            fracao_treino = int(np.floor(p * (treino_x.shape[0] / qtde_acoes)) * qtde_acoes)        
+#            treino_x_tre = treino_x[:fracao_treino,:,:]
+#            treino_y_tre = treino_y[:fracao_treino,:]
+#            treino_x_val = treino_x[fracao_treino:,:,:] 
+#            treino_y_val = treino_y[fracao_treino:,:] 
+#            n_batch = qtde_acoes
+#            model = Sequential()
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(LSTM(n_neurons, stateful = False, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+#            model.add(Dense(1))
+#            model.add(Activation('sigmoid'))
+#            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#            if monitCen == 0:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_loss', verbose = 0, save_best_only = True, mode = 'auto')
+#            else:
+#                checkpoint = ModelCheckpoint(modelfilepath, monitor = 'val_acc', verbose = 0, save_best_only = True, mode = 'auto')
+#            callbacks_list = [checkpoint]
+#            print(model.summary())
+#            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+#            history = model.fit(treino_x_tre, treino_y_tre, validation_data = (treino_x_val, treino_y_val), epochs = n_epoch, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)    
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            model = Sequential()
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model.add(Dense(1))
+            model.add(Activation('sigmoid'))
+            model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            checkpoint = ModelCheckpoint(modelfilepath, monitor = 'loss', verbose = 0, save_best_only = False, mode = 'auto')
+            callbacks_list = [checkpoint]
+            modPars = model.count_params()
+            print(model.summary())
+            print('\nTreinando o modelo com', n_epoch, 'epochs...')
+            for i in range(n_epoch):
+                history = model.fit(treino_x, treino_y, epochs = 1, batch_size = n_batch, callbacks = callbacks_list, verbose = ver, shuffle = False)
+                df_hist.iloc[i,0] = history.history['acc'][0]
+                df_hist.iloc[i,1] = history.history['loss'][0]
+                model.reset_states()
+
+
+            model.load_weights(modelfilepath)
+            # re-define the batch size
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = treino_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_treino  = model_new.evaluate(treino_x, treino_y, batch_size = n_batch, verbose = ver)
+            treino_y_pred = np.array(model_new.predict(treino_x, batch_size = n_batch, verbose = ver))
+            
+            
+            
+            if n_batch_val == 0:
+                n_batch = qtde_acoes
+            else:
+                n_batch = teste_x.shape[0]
+            # re-define model
+            model_new = Sequential()
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, batch_input_shape = (n_batch, treino_x.shape[1], treino_x.shape[2]), recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = True, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(LSTM(n_neurons, stateful = True, return_sequences = False, recurrent_dropout = 0.1, dropout = 0.1))
+            model_new.add(Dense(1))
+            model_new.add(Activation('sigmoid'))
+            # copy weights
+#            old_weights = model.get_weights()
+            model_new.set_weights(old_weights)
+            # compile model
+            model_new.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+            # batch forecast
+            score_teste   = model_new.evaluate(teste_x, teste_y, batch_size = n_batch, verbose = ver)
+            teste_y_pred  = np.array(model_new.predict(teste_x, batch_size = n_batch, verbose = ver))  
+            
+                
+        # performance do modelo no treino e no teste
+        # carrega e compila os pesos do melhor modelo
+#        model.load_weights(modelfilepath)
+#        model.compile(loss='binary_crossentropy', optimizer='Adam', metrics = ['accuracy'])
+#        score_treino  = model.evaluate(treino_x, treino_y, batch_size = n_batch, verbose = ver)
+#        score_teste   = model.evaluate(teste_x, teste_y, batch_size = n_batch, verbose = ver)
+#        treino_y_pred = np.array(model.predict(treino_x, batch_size = n_batch, verbose = ver))
+#        teste_y_pred  = np.array(model.predict(teste_x, batch_size = n_batch, verbose = ver))            
+        loss_acc(df_hist)
+        histbonsmaus(treino_y_pred,treino_y,teste_y_pred,teste_y)    
+        prec_vs_rec(treino_y_pred,treino_y,teste_y_pred,teste_y)
+        teste_y_pred = DataFrame(np.append(np.reshape(teste_y,(len(teste_y),1)), np.reshape(teste_y_pred,(len(teste_y_pred),1)), axis = 1), columns = ["A","B"])
+
+
+
+
+        # Estratégia de compra de ações referentes ao perído treino-teste:
+        #   Para cada dia no período de teste, toma-se a rentabilidade das 
+        #   k = {1,3,5,7,10,15,20} ações com maior probabilidade de retorno
+        #   positivo. Acumula-se o retorno diário das carteiras com k-ações.
+        show_performance_modelo(score_treino,score_teste,treino_y,teste_y,modPars)
+
+#        print(' ************ Dimensão das bases de datas, ações e probabilidades ***********')
+#        print('# probs:',teste_y_pred.shape[0], '# datas:', teste_datas_total.shape[0], '# ações:', qtde_acoes, '# datas x # ações:', teste_datas_total.shape[0] * qtde_acoes)
+            
+        ret_medio_ibov, ret_medio_ibov_acum, ret_medio_port_long, ret_medio_port_long_acum, ret_medio_port_short, ret_medio_port_short_acum, ret_medio_port, ret_medio_port_acum, ret_versus_prob = comprar_acoes(k, teste_retornos_total, papeis, teste_datas_total, teste_y_pred, qtde_treino)
+                
+        
+        k_port = 4 
+        N = DataFrame(teste_datas_total, columns = ['data'])
+        MEDIUM_SIZE = 16
+        BIGGER_SIZE = 22
+        plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
+        plt.rc('axes', titlesize=BIGGER_SIZE)    # fontsize of the axes title
+        plt.rc('axes', labelsize=MEDIUM_SIZE)     # fontsize of the x and y labels
+        plt.rc('xtick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+        plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+        plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
+        plt.rc('figure', titlesize=BIGGER_SIZE)   # fontsize of the figure title
+        plt.rcParams['figure.figsize'] = (18, 8)
+        plt.figure()
+        for j in range(k_port,len(k)):
+            label_ = "portfolio k = " + str(k[j])
+            plt.plot(N, ret_acum(DataFrame(ret_medio_port_long).iloc[:,j].values), label=label_)
+        plt.plot(N, ret_acum(DataFrame(ret_medio_ibov).values), label="ibovespa")
+        plt.title("LSTM Deep Learning: Long Strategy")
+        plt.xlabel("Data")
+        plt.ylabel("Retorno Acumulado")
+        plt.legend(frameon=False)
+        plt.show()
+
+        plt.figure()
+        for j in range(k_port,len(k)):
+            label_ = "portfolio k = " + str(k[j])
+            plt.plot(N, ret_acum(DataFrame(ret_medio_port_short).iloc[:,j].values), label=label_)
+        plt.plot(N, ret_acum(DataFrame(ret_medio_ibov).values), label="ibovespa")
+        plt.title("LSTM Deep Learning: Short Strategy")
+        plt.xlabel("Data")
+        plt.ylabel("Retorno Acumulado")
+        plt.legend(frameon=False)
+        plt.show()
+        plt.rcParams['figure.figsize'] = (12, 8)
+    
+    
+
+        
+        
+        # dados da simulação
+        performance_modelo[sim,0] = score_treino[0]
+        performance_modelo[sim,1] = score_teste[0]
+        performance_modelo[sim,2] = score_treino[1]
+        performance_modelo[sim,3] = score_teste[1]
+        performance_modelo[sim,4] = treino_y.mean()
+        performance_modelo[sim,5] = teste_y.mean()
+        performance_modelo[sim,6] = treino_y.std()        
+        performance_modelo[sim,7] = teste_y.std()    
+    
+        if sim_ok == 1:
+            datas_teste_sim = teste_datas_total
+            ret_medio_ibov_sim = ret_medio_ibov
+            ret_medio_port_sim = ret_medio_port
+            ret_medio_port_long_sim = ret_medio_port_long
+            ret_medio_port_short_sim = ret_medio_port_short
+            corr_prob_ret_sim = ret_versus_prob
+        else:
+            datas_teste_sim = np.append(datas_teste_sim, teste_datas_total, axis = 0)
+            ret_medio_ibov_sim = np.append(ret_medio_ibov_sim, ret_medio_ibov, axis = 0)
+            ret_medio_port_sim = np.append(ret_medio_port_sim, ret_medio_port, axis = 0)
+            ret_medio_port_long_sim = np.append(ret_medio_port_long_sim, ret_medio_port_long, axis = 0)
+            ret_medio_port_short_sim = np.append(ret_medio_port_short_sim, ret_medio_port_short, axis = 0)
+            corr_prob_ret_sim =  np.append(corr_prob_ret_sim, ret_versus_prob, axis = 0)
+        sim += 1
+        end_time = time.time()
+        print('Tempo de simulação..........: ', timer(start_time,end_time))
+        
+    return performance_modelo, ret_medio_ibov_sim, ret_medio_port_sim, ret_medio_port_long_sim, ret_medio_port_short_sim, corr_prob_ret_sim, datas_teste_sim
+
 
 

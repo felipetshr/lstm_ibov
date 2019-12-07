@@ -4,9 +4,10 @@ from pandas import read_csv
 def carrega_dados():
     
     path = 'D:/Users/felip/Documents/07. FEA/Dissertacao/dados/BOVESPA/dataprep/'
+#    path = '/content/drive/My Drive/codigos/dados/'
     
     print("loading Preço...")
-    nome = 'fechamento.txt'
+    nome = 'fechamento_v2.txt'
     file = path + nome
     fechamento = read_csv(file,sep = ',')
     data = fechamento.iloc[:,1]
@@ -43,7 +44,7 @@ def carrega_dados():
                              'lpa': lpa}, columns = ['data', 'codigo', 'lpa'])
     
     print("loading Dolar...")
-    nome = 'dolar.txt'
+    nome = 'dolar_v2.txt'
     file = path + nome
     dolar = read_csv(file,sep = ',')
     data = dolar.iloc[:,0]
@@ -102,7 +103,7 @@ def carrega_dados():
                                            'dji_low'])
     
     print("loading S&P500...")
-    nome = 'sp500.txt'
+    nome = 'sp500_v2.txt'
     file = path + nome
     sp500 = read_csv(file,sep = ',')
     data = sp500.iloc[:,0]
@@ -122,7 +123,7 @@ def carrega_dados():
                                            'sp500_low'])
     
     print("loading Risco Brasil...")
-    nome = 'risco_brasil.txt'
+    nome = 'risco_brasil_v2.txt'
     file = path + nome
     risco_brasil = read_csv(file,sep = ',')
     data = risco_brasil.iloc[:,0]
@@ -133,7 +134,7 @@ def carrega_dados():
                                            'risco_brasil'])
    
     print("loading IBOV Futuro...")
-    nome = 'ibov_futuro.txt'
+    nome = 'ibov_futuro_v2.txt'
     file = path + nome
     ibov_fut = read_csv(file,sep = ',')
     data = ibov_fut.iloc[:,0]
@@ -151,7 +152,32 @@ def carrega_dados():
                                            'ibov_fut_open',
                                            'ibov_fut_high',
                                            'ibov_fut_low'])
+
+
+    print("loading IBOV...")
+    nome = 'ibov_v2.txt'
+    file = path + nome
+    ibov = read_csv(file,sep = ',')
+    data = ibov.iloc[:,0]
+    ibov_close = ibov.iloc[:,1]
+    ibov_open = ibov.iloc[:,2]
+    ibov_high = ibov.iloc[:,3]
+    ibov_low = ibov.iloc[:,4]
+    ibov_ret = ibov.iloc[:,5]
+    base_ibov = pd.DataFrame({'data': pd.to_datetime(data),                           
+                               'ibov_close': ibov_close,
+                               'ibov_open': ibov_open,
+                               'ibov_high': ibov_high,
+                               'ibov_low': ibov_low,
+                               'ibov_ret': ibov_ret}, 
+                                columns = ['data',
+                                           'ibov_close',
+                                           'ibov_open',
+                                           'ibov_high',
+                                           'ibov_low',
+                                           'ibov_ret'])
     
+        
     print("loading ROIC...")
     nome = 'roic.txt'
     file = path + nome
@@ -209,18 +235,19 @@ def carrega_dados():
     
     print("Join Data Bases...")
     base_total = pd.merge(base_fechamento, base_retorno, how = 'outer', on = ['data', 'codigo'])
-    base_total = pd.merge(base_total, base_lpa, how = 'outer', on = ['data', 'codigo'])                          
-    base_total = pd.merge(base_total, base_pl, how = 'outer', on = ['data', 'codigo'])
-    base_total = pd.merge(base_total, base_roic, how = 'outer', on = ['data', 'codigo'])
-    base_total = pd.merge(base_total, base_roe, how = 'outer', on = ['data', 'codigo'])
-    base_total = pd.merge(base_total, base_sharpe, how = 'outer', on = ['data', 'codigo'])
-    base_total = pd.merge(base_total, base_irf, how = 'outer', on = ['data', 'codigo'])
+#    base_total = pd.merge(base_total, base_lpa, how = 'outer', on = ['data', 'codigo'])                          
+#    base_total = pd.merge(base_total, base_pl, how = 'outer', on = ['data', 'codigo'])
+#    base_total = pd.merge(base_total, base_roic, how = 'outer', on = ['data', 'codigo'])
+#    base_total = pd.merge(base_total, base_roe, how = 'outer', on = ['data', 'codigo'])
+#    base_total = pd.merge(base_total, base_sharpe, how = 'outer', on = ['data', 'codigo'])
+#    base_total = pd.merge(base_total, base_irf, how = 'outer', on = ['data', 'codigo'])
     base_total = pd.merge(base_total, base_dolar, how = 'outer', on = ['data'])
-    base_total = pd.merge(base_total, base_petroleo, how = 'outer', on = ['data'])
-    base_total = pd.merge(base_total, base_dji, how = 'outer', on = ['data'])
+#    base_total = pd.merge(base_total, base_petroleo, how = 'outer', on = ['data'])
+#    base_total = pd.merge(base_total, base_dji, how = 'outer', on = ['data'])
     base_total = pd.merge(base_total, base_sp500, how = 'outer', on = ['data'])
     base_total = pd.merge(base_total, base_risco_brasil, how = 'outer', on = ['data'])
-    base_total = pd.merge(base_total, base_ibov_fut, how = 'outer', on = ['data'])    
+    base_total = pd.merge(base_total, base_ibov_fut, how = 'outer', on = ['data'])
+    base_total = pd.merge(base_total, base_ibov, how = 'outer', on = ['data'])
     base_total = base_total.set_index(['data', 'codigo'])
     base_total = base_total.sort_index(axis=0, level=['data', 'codigo'])
     base_total = base_total.reset_index(level=['data','codigo'])

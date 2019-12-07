@@ -1,7 +1,7 @@
 import numpy as np
 
-seed = 42
-np.random.seed(seed)
+#seed = 42
+#np.random.seed(seed)
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -52,22 +52,34 @@ def plot_variaveis(base):
 
 
 
-def dataprep_for_batches(datas, inicio_treino, dias_treino, time_steps, dias_teste, features, cols, ret_target, compomentes, base_total):   
+def dataprep_for_batches(datas, inicio_treino, dias_treino, time_steps, dias_teste, features, cols, ret_ibov, ret_target, compomentes, base_total, comm, stocks):   
 
     dia_inicio_treino = pd.to_datetime(datas.iloc[inicio_treino].values)[0]
     dia_fim_treino = pd.to_datetime(datas.iloc[inicio_treino+dias_treino].values)[0]
-    dia_inicio_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+1].values)[0]
+#    dia_inicio_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+1].values)[0]
     dia_inicio_teste_aux = pd.to_datetime(datas.iloc[inicio_treino+dias_treino-time_steps+1].values)[0]
     dia_fim_teste = pd.to_datetime(datas.iloc[inicio_treino+dias_treino+dias_teste].values)[0]
     
     month = "{0:02d}".format(dia_fim_treino.month)
     year =  "{0:04d}".format(dia_fim_treino.year)[2:]
     anomes = month + '/' + year
-    papeis = compomentes.loc[:,anomes][compomentes.loc[:,anomes] > 0].index.values.tolist()
+    
+    if comm == 1:
+        papeis = stocks
+    else:
+        papeis = compomentes.loc[:,anomes][compomentes.loc[:,anomes] > 0].index.values.tolist()
     
     base_in = base_total.loc[base_total['codigo'].isin(papeis)]
+    
+    if ret_ibov == 1:
+        base_in['y'] = ((base_in['retorno'] > base_in['ibov_ret'])).astype(np.int)
+    else:
+        base_in['y'] = ((base_in['retorno'] > ret_target)).astype(np.int)
+
+    features.append('y')
+    
     base = base_in[features]
-    base['y'] = ((base['retorno'] > ret_target)).astype(np.int) 
+
     base = base.dropna(axis = 0, how = 'any')
     new_features = list(base)
     n_features = base.shape[1]
@@ -110,7 +122,7 @@ def dataprep_for_batches(datas, inicio_treino, dias_treino, time_steps, dias_tes
         aux = aux.set_index(['data','codigo'])
         aux = aux[~aux.index.duplicated(keep='first')]
         if feature in cols:
-            aux = np.log(aux)
+            aux = np.log1p(aux)
         aux = aux.reset_index(level=['data','codigo'])
         base_batch_total = pd.merge(base_batch_total, aux, how = 'left', on = ['data', 'codigo'])    
         #print('shape da base_batch_total:', base_batch_total.shape)
@@ -150,9 +162,14 @@ def dataprep_for_batches(datas, inicio_treino, dias_treino, time_steps, dias_tes
     teste_papeis = teste.iloc[:,1].values.reshape(teste.shape[0],1)
     teste_retornos = teste.iloc[:,2].values.reshape(teste.shape[0],1)
     
+    treino_x[np.isinf(treino_x)] = 0
+    treino_x[np.isnan(treino_x)] = 0
+    teste_x[np.isinf(teste_x)] = 0
+    teste_x[np.isnan(teste_x)] = 0
+    
     scaler_x = MinMaxScaler(feature_range=(-1, 1))
     scaler_x.fit(treino_x)
-    treino_x = scaler_x.transform(treino_x)    
+    treino_x = scaler_x.transform(treino_x)
     teste_x = scaler_x.transform(teste_x)
     
     treino_geral = DataFrame(np.concatenate((treino_papeis, treino_x, treino_datas, treino_retornos, treino_y), axis = 1))
@@ -283,7 +300,7 @@ def dataprep_for_batches(datas, inicio_treino, dias_treino, time_steps, dias_tes
     print('Qtde ações teste......:', qtde_teste)
     print('Taxa Treino...........:{: 2.4f}'.format(treino_y.mean()))
     print('Taxa Teste............:{: 2.4f}'.format(teste_y.mean()))
-    print('Qtde features.........:', n_features-2)
+    print('Qtde features.........:', n_features-3)
     print('\n')
     
     if qtde_treino != qtde_teste:
